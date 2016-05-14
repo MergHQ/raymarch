@@ -1,27 +1,101 @@
-float sphere(vec3 p){
-	return length(p) - 1.0;
+precision mediump float;
+
+uniform int u_width;
+uniform int u_height;
+uniform int u_time;
+
+const int ITER = 64;
+const float EPSILON = 0.01;
+vec3 sky = vec3(0.0);
+
+mat3 getXRotMat(float a) {
+    return mat3(
+         1.0,  0.0,     0.0,
+         0.0,  cos(a), -sin(a),
+         0.0,  sin(a),  cos(a)
+    );
 }
 
-float plane(vec3 p, vec3 n) {
-	return dot(p,n);
+//-------------------------------
+
+float plane(vec3 p)
+{
+    return p.y;
 }
 
-vec3 normal(vec3 p) {
+
+float box(vec3 p) {
+    p -= vec3(0.7);
+    p.xz = mod(p.xz, 3.0) - vec2(1.5);
+    vec3 d = abs(p) - vec3(0.4);
+    return min(max(d.x,max(d.y,d.z)),0.0) + length(max(d,0.0));
+}
+
+float sphere(vec3 p)
+{
+    p -= vec3(0.7);
+    p.xz = mod(p.xz, 3.0) - vec2(1.5);
+    return length(p) -0.4;
+}
+
+vec2 map(vec3 p)
+{
+    if(plane(p) < box(p))
+        return vec2(plane(p), 1.);
+    else
+        return vec2(box(p), 0.);
+}
+
+float scene(vec3 p)
+{
+    return map(p).x;
+}
+
+vec3 normal(vec3 p)
+{
     float e = 0.001;
     vec3 n = vec3(0.0);
-    n.x = sphere(p + vec3(e, 0, 0)) - sphere(p - vec3(e, 0, 0));
-    n.y = sphere(p + vec3(0, e, 0)) - sphere(p - vec3(0, e, 0));
-    n.z = sphere(p + vec3(0, 0, e)) - sphere(p - vec3(0, 0, e));
+    n.x = scene(p + vec3(e, 0, 0)) - scene(p - vec3(e, 0, 0));
+    n.y = scene(p + vec3(0, e, 0)) - scene(p - vec3(0, e, 0));
+    n.z = scene(p + vec3(0, 0, e)) - scene(p - vec3(0, 0, e));
     return normalize(n);
 }
 
-vec4 shade(vec3 p, vec3 n) {
+vec4 shade(vec3 p)
+{
+    vec3 n = normal(p);
 	vec3 lp = vec3(100, 100, 0);
-    float NdL =  dot(lp, n);
+    float NdL =  dot((lp - p), n);
     if(NdL > 0.0)
-    	return vec4(0.7, 0.6, 0.3, 1.0) / 70.0 * dot(lp, normal(p));
+    	return vec4(0.7, 0.6, 0.5, 1.0) / 100.0 * NdL;
     else
         return vec4(0.3, 0.2, 0.3, 1.0) / 70.0;
+}
+
+vec4 march(vec3 p, vec3 dir)
+{
+    float t = 0.0;
+    bool hit = false;
+    float blendFactor = 0.0;
+    vec3 p0 = p;
+    for(int i = 0; i < ITER; ++i)
+    {
+        p0 = p + dir * t;
+        float d = scene(p0);
+        t += d;
+        if(d < EPSILON)
+        {
+            blendFactor = float(i) / float(ITER);
+            hit = true;
+            break;
+        }
+
+    }
+
+    if(hit)
+        return vec4(p0, blendFactor);
+
+    return vec4(0.0);
 }
 
 vec4 getFloorTexture(vec3 p)
@@ -30,58 +104,48 @@ vec4 getFloorTexture(vec3 p)
 	return m.x * m.y > 0.0 ? vec4(0.1) : vec4(1.0);
 }
 
-vec4 scene()
+vec4 render(vec3 p, vec3 dir)
 {
-    vec3 eye = vec3(0, 1, iGlobalTime * 5.0);
-    vec3 up = vec3(0, 1, 0);
-    vec3 right = vec3(1, 0, 0);
+    vec3 color = sky;
 
-    float u = gl_FragCoord.x * 2.0 / iResolution.x - 1.0;
-    float v = gl_FragCoord.y * 2.0 / iResolution.y - 1.0;
-    vec3 forward = normalize(cross(right, up));
-	float aspectRatio = iResolution.x / iResolution.y;
-    vec3 persp = normalize(forward * 2.0 + right * u * aspectRatio + up * v);
+    vec4 marchRes = march(p, dir);
 
-    vec4 sky = vec4(0.9,0.9,1.0,1.0);
-    vec4 color = sky;
+    if(length(marchRes) == 0.0)
+        return vec4(color, 1.0);
 
-    float t = 0.0;
-    const int maxSteps = 128;
+    // Base color
+    if(map(marchRes.xyz).y == 0.0)
+    	color = shade(marchRes.xyz).xyz;
+    else
+        color = getFloorTexture(marchRes.xyz).xyz * 0.3;
 
-    for(int i = 0; i < maxSteps; ++i)
-    {
-        vec3 p = eye + persp * t;
-        float d = plane(p, up);
-        if(d < 0.001)
-        {
-        	color = getFloorTexture(p);
-            color = mix(color, sky, float(i) / float(maxSteps));
-            break;
-        }
+    // Reflections
+    vec3 p0 = marchRes.xyz;
+    vec3 refDir = normalize(reflect(dir, normal(p0)));
+    vec4 refRes = march(p0 + refDir * EPSILON, refDir);
+    if(map(refRes.xyz).y == 0.0)
+    	color += shade(refRes.xyz).xyz * 0.5;
+    else
+        color += getFloorTexture(refRes.xyz).xyz * 0.15;
 
-        t += d;
-    }
+    color = mix(color, sky, marchRes.w);
 
-    t = 0.0;
-    for(int i = 0; i < maxSteps; ++i)
-    {
-        vec3 p = eye + persp * t;
-        p.xz = mod(p.xz, 3.0) - vec2(1.5);
-        float d = sphere(p);
-        if(d < 0.001)
-        {
-            color = shade(p, normal(p));
-            color = mix(color, sky, float(i) / float(maxSteps));
-            break;
-        }
-
-        t += d;
-    }
-
-    return color;
+    return vec4(color, 1.0);
 }
 
-void mainImage( out vec4 fragColor, in vec2 fragCoord )
+void main()
 {
-	fragColor = scene();
+    vec2 aspect = vec2(float(u_width)/float(u_height), 1.0); //
+	vec2 screenCoords = (2.0*gl_FragCoord.xy/vec2(float(u_width), float(u_height)) - 1.0)*aspect;
+    vec3 eye = vec3(1.0, 1.0, -10.0);
+    eye.z += float(u_time)/ 200.0;
+
+    vec3 forward = normalize(-eye);
+    vec3 right = normalize(vec3(forward.z, 0., -forward.x ));
+    vec3 up = normalize(cross(forward,right));
+    vec2 screenPos = (2.0*gl_FragCoord.xy-vec2(float(u_width), float(u_height)))/float(u_height);
+    vec3 rayDir = normalize(vec3(screenPos*0.5, 1.0));
+
+    gl_FragColor = render(eye, rayDir);
+
 }
