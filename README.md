@@ -1,4 +1,4 @@
 # raymarch
 Experiments with raymarching
 
-[Old demo](http://hugoh.xyz/raymarch/)
+[WebGL Demo](http://hugoh.xyz/raymarch/)
