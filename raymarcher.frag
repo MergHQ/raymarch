@@ -8,7 +8,8 @@ const int ITER = 64;
 const float EPSILON = 0.01;
 vec3 sky = vec3(0.0);
 
-mat3 getXRotMat(float a) {
+mat3 getXRotMat(float a)
+{
     return mat3(
          1.0,  0.0,     0.0,
          0.0,  cos(a), -sin(a),
@@ -24,7 +25,8 @@ float plane(vec3 p)
 }
 
 
-float box(vec3 p) {
+float box(vec3 p)
+{
     p -= vec3(0.7);
     p.xz = mod(p.xz, 3.0) - vec2(1.5);
     vec3 d = abs(p) - vec3(0.4);
@@ -128,7 +130,10 @@ vec4 render(vec3 p, vec3 dir)
     else
         color += getFloorTexture(refRes.xyz).xyz * 0.15;
 
-    color = mix(color, sky, marchRes.w);
+    // Basically: d/dx(e^(x/k)-1)
+    float k = 15.0;
+    float blendFactor = (exp(marchRes.w / k)) / k;
+    color = mix(color, sky, clamp(blendFactor, 0.0, 1.0));
 
     return vec4(color, 1.0);
 }
@@ -136,7 +141,7 @@ vec4 render(vec3 p, vec3 dir)
 void main()
 {
     vec2 aspect = vec2(float(u_width)/float(u_height), 1.0); //
-	vec2 screenCoords = (2.0*gl_FragCoord.xy/vec2(float(u_width), float(u_height)) - 1.0)*aspect;
+    vec2 screenCoords = (2.0*gl_FragCoord.xy/vec2(float(u_width), float(u_height)) - 1.0)*aspect;
     vec3 eye = vec3(1.0, 1.0, -10.0);
     eye.z += float(u_time)/ 200.0;
 
