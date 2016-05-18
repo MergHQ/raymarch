@@ -17,8 +17,6 @@ mat3 getXRotMat(float a)
     );
 }
 
-//-------------------------------
-
 float plane(vec3 p)
 {
     return p.y;
@@ -36,16 +34,16 @@ float box(vec3 p)
 float sphere(vec3 p)
 {
     p -= vec3(0.7);
-    p.xz = mod(p.xz, 3.0) - vec2(1.5);
+    p = mod(p, 3.0) - vec3(1.5);
     return length(p) -0.4;
 }
 
 vec2 map(vec3 p)
 {
-    if(plane(p) < box(p))
+    if(plane(p) < sphere(p))
         return vec2(plane(p), 1.);
     else
-        return vec2(box(p), 0.);
+        return vec2(sphere(p), 0.);
 }
 
 float scene(vec3 p)
@@ -87,7 +85,7 @@ vec4 march(vec3 p, vec3 dir)
         t += d;
         if(d < EPSILON)
         {
-            blendFactor = float(i) / float(ITER);
+            blendFactor = float(i);
             hit = true;
             break;
         }
