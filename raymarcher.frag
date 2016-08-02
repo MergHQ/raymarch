@@ -34,7 +34,7 @@ float box(vec3 p)
 float sphere(vec3 p)
 {
     p -= vec3(0.7);
-    p = mod(p, 3.0) - vec3(1.5);
+    p.xz = mod(p.xz, 3.0) - vec2(1.5);
     return length(p) -0.4;
 }
 
@@ -43,7 +43,7 @@ vec2 map(vec3 p)
     if(plane(p) < sphere(p))
         return vec2(plane(p), 1.);
     else
-        return vec2(sphere(p), 0.);
+        return vec2(box(p), 0.);
 }
 
 float scene(vec3 p)
@@ -67,7 +67,7 @@ vec4 shade(vec3 p)
 	vec3 lp = vec3(100, 100, 0);
     float NdL =  dot((lp - p), n);
     if(NdL > 0.0)
-    	return vec4(sin(float(u_time) / 10.0) + 1.0, sin(float(u_time) / 10.0) + 1.0, cos(float(u_time) / 10.0) + 1.0, 1.0) / 100.0 * NdL;
+    	return vec4(sin(float(u_time) / 100.0) + 1.0, sin(float(u_time) / 100.0) + 1.0, cos(float(u_time) / 100.0) + 1.0, 1.0) / 100.0 * NdL;
     else
         return vec4(0.3, 0.2, 0.3, 1.0) / 70.0;
 }
